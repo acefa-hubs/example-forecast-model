@@ -115,7 +115,7 @@ forecast_data <- forecasting_predictions %>%
   )
 
 # Make sure our file name matches forecast_date and our model name
-forecast_file_name <- str_c(forecast_date, "-uom-testmodel.parquet")
+forecast_file_name <- str_c(forecast_date, "-uom-testing.parquet")
 
 # Write out our forecast_data as a parquet file
 arrow::write_parquet(forecast_data, forecast_file_name)
