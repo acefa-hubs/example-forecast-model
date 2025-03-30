@@ -4,16 +4,16 @@ library(tidyverse)
 library(mgcv)
 library(gratia)
 
-# Read in the data we are going to forecast (flu case counts)
-flu_data <- read_csv("flu-case-count-2024-05-23.csv")
+# Read in the data we are going to forecast (flu case counts from Victoria)
+flu_data <- read_csv("...")
 
 # Filter for just this season
 flu_data_recent <- flu_data %>%
   filter(notification_date >= ymd("2024-03-01"))
 
 # Read and extract the relevant date information
-date_information <- read_csv("date-information-2024-05-23.csv") %>%
-  filter(pathogen == "Influenza")
+date_information <- read_csv("...") %>%
+  filter(pathogen == "flu")
 
 origin_date <- date_information$origin_date
 forecast_date <- date_information$forecast_date
@@ -22,6 +22,8 @@ forecast_date <- date_information$forecast_date
 ggplot() +
   geom_line(aes(x = notification_date, y = cases),
             flu_data_recent) +
+  
+  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
   
   theme_bw()
 
@@ -65,12 +67,14 @@ ggplot() +
             flu_data_recent) +
   
   geom_line(aes(x = notification_date, y = pred_count, group = .draw),
-            alpha = 0.5,
-            forecasting_predictions %>% filter(.draw < 10)) +
+            alpha = 0.5, colour = ggokabeito::palette_okabe_ito(5),
+            forecasting_predictions %>% filter(.draw < 5)) +
+  
+  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
   
   scale_fill_brewer() +
   
-  scale_y_continuous(limits = c(0, 1000)) +
+  scale_y_continuous(limits = c(0, 900)) +
   
   theme_bw()
 
@@ -84,9 +88,11 @@ ggplot() +
   geom_line(aes(x = notification_date, y = cases),
             flu_data_recent) +
   
+  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
+  
   scale_fill_brewer() +
   
-  scale_y_continuous(limits = c(0, 1000)) +
+  scale_y_continuous(limits = c(0, 900)) +
   
   theme_bw()
 
@@ -101,18 +107,22 @@ forecast_data <- forecasting_predictions %>%
     horizon = as.integer(notification_date - origin_date),
     target = "case incidence", 
     origin_date = origin_date,
-    forecast_date = forecast_date,
-    output_type = "sample"
+    forecast_date = "2024-09-20",
+    output_type = "sample",
+    output_type_id = .draw,
+    value = as.integer(pred_count)
   ) %>%
   
   select(
     forecast_date, origin_date,
     target, horizon, location, pathogen,
-    output_type,
-    output_type_id = .draw,
     
-    value = pred_count
+    output_type, output_type_id,
+    
+    value
   )
+
+forecast_data
 
 # Make sure our file name matches forecast_date and our model name
 forecast_file_name <- str_c(forecast_date, "-uom-testing.parquet")
