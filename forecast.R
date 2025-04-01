@@ -5,15 +5,16 @@ library(mgcv)
 library(gratia)
 
 # Read in the data we are going to forecast (flu case counts from Victoria)
-flu_data <- read_csv("...")
+flu_data <- read_csv("flu-case-count-2024-09-19.csv")
+
+# Read and extract the relevant date information
+date_information <- read_csv("date-information-2024-09-19.csv") %>%
+  filter(pathogen == "flu")
 
 # Filter for just this season
 flu_data_recent <- flu_data %>%
   filter(notification_date >= ymd("2024-03-01"))
 
-# Read and extract the relevant date information
-date_information <- read_csv("...") %>%
-  filter(pathogen == "flu")
 
 origin_date <- date_information$origin_date
 forecast_date <- date_information$forecast_date
@@ -107,7 +108,7 @@ forecast_data <- forecasting_predictions %>%
     horizon = as.integer(notification_date - origin_date),
     target = "case incidence", 
     origin_date = origin_date,
-    forecast_date = "2024-09-20",
+    forecast_date = forecast_date,
     output_type = "sample",
     output_type_id = .draw,
     value = as.integer(pred_count)
