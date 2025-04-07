@@ -17,7 +17,7 @@ flu_data_recent <- flu_data %>%
 
 
 origin_date <- date_information$origin_date
-forecast_date <- date_information$forecast_date
+round_id <- date_information$round_id
 
 # Plot out data
 ggplot() +
@@ -108,14 +108,14 @@ forecast_data <- forecasting_predictions %>%
     horizon = as.integer(notification_date - origin_date),
     target = "case incidence", 
     origin_date = origin_date,
-    forecast_date = forecast_date,
+    round_id = round_id,
     output_type = "sample",
     output_type_id = .draw,
     value = as.integer(pred_count)
   ) %>%
   
   select(
-    forecast_date, origin_date,
+    round_id, origin_date,
     target, horizon, location, pathogen,
     
     output_type, output_type_id,
@@ -125,8 +125,8 @@ forecast_data <- forecasting_predictions %>%
 
 forecast_data
 
-# Make sure our file name matches forecast_date and our model name
-forecast_file_name <- str_c(forecast_date, "-uom-testing.parquet")
+# Make sure our file name matches round_id and our model name
+forecast_file_name <- str_c(round_id, "-uom-testing.parquet")
 
 # Write out our forecast_data as a parquet file
 arrow::write_parquet(forecast_data, forecast_file_name)
