@@ -41,7 +41,7 @@ gam_fit <- mgcv::gam(log_count ~ t + s(day_of_week, k = 3), data = model_data)
 # Create a tibble with the future dates in the
 # same format as model_data
 forecasting_predictor_data <- tibble(
-  notification_date = seq(origin_date, origin_date + days(28), by = "days")
+  notification_date = seq(origin_date, origin_date + days(90), by = "days")
 ) %>%
   
   mutate(t = as.numeric(notification_date - min(model_data$notification_date)),
@@ -106,7 +106,7 @@ forecast_data <- forecasting_predictions %>%
     pathogen = "flu",
     location = "VIC",
     horizon = as.integer(notification_date - origin_date),
-    target = "case incidence", 
+    target = "case_incidence", 
     origin_date = origin_date,
     round_id = round_id,
     output_type = "sample",
