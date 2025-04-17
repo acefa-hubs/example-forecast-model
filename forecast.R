@@ -4,60 +4,87 @@ library(tidyverse)
 library(mgcv)
 library(gratia)
 
-# Read in the data we are going to forecast (flu case counts from Victoria)
-flu_data <- read_csv("flu-case-count-2024-09-19.csv")
+# Read in the data we are going to forecast
+case_counts <- read_csv("Combined-count-2025-04-17.csv")
 
 # Read and extract the relevant date information
-date_information <- read_csv("date-information-2024-09-19.csv") %>%
-  filter(pathogen == "flu")
+date_information <- read_csv("date-information-2025-04-17.csv") %>%
+  rename(round_id = forecast_date) %>%
+  
+  filter(pathogen != "SARSCOV2", location != "NZ")
 
 # Filter for just this season
-flu_data_recent <- flu_data %>%
-  filter(notification_date >= ymd("2024-03-01"))
+case_counts_recent <- case_counts %>%
+  filter(notification_date >= ymd("2025-01-01")) %>%
+  
+  left_join(date_information) %>% # TODO remove when data fixed
+  filter(notification_date <= origin_date) %>%
+  select(-c(origin_date, round_id, date_received))
 
-
-origin_date <- date_information$origin_date
-round_id <- date_information$round_id
+# Extract the round id for this week (should be the same as in the filename)
+round_id <- first(date_information$round_id)
 
 # Plot out data
 ggplot() +
   geom_line(aes(x = notification_date, y = cases),
-            flu_data_recent) +
+            case_counts_recent) +
   
-  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
+  geom_vline(aes(xintercept = origin_date),
+             date_information,
+             colour = ggokabeito::palette_okabe_ito(5)) +
+  
+  facet_wrap(~location * pathogen, scales = "free_y") +
   
   theme_bw()
 
 # Modify our data to make it readable by mgcv
-model_data <- flu_data_recent %>%
+model_data <- case_counts_recent %>%
   filter(notification_date >= max(notification_date) - days(14)) %>% 
   mutate(t = as.numeric(notification_date - min(notification_date)),
          day_of_week = wday(notification_date),
-         log_count = log(cases))
+         log_count = log(cases + 1))
 
 
-gam_fit <- mgcv::gam(log_count ~ t + s(day_of_week, k = 3), data = model_data)
+model_data_split <- model_data %>%
+  group_split(location, pathogen)
 
-# Create a tibble with the future dates in the
-# same format as model_data
-forecasting_predictor_data <- tibble(
-  notification_date = seq(origin_date, origin_date + days(90), by = "days")
+gam_fits <- map(
+  model_data_split,
+  function(x) {
+    mgcv::gam(log_count ~ t + s(day_of_week, k = 3), data = x)
+  }
+)
+
+gratia::draw(gam_fits[[2]])
+
+forecasting_predictor_data_split <- date_information %>%
+  select(location, pathogen, origin_date) %>%
+  rowwise() %>%
+  mutate(notification_date = list(origin_date + 1:28)) %>%
+  unnest(notification_date) %>% 
+  mutate(t = as.numeric(notification_date - min(notification_date)),
+         day_of_week = wday(notification_date)) %>%
+  group_split(location, pathogen)
+
+# Produce our predictions across the posterior of each gam
+forecasting_predictions <- pmap(
+  list(gam_fits, forecasting_predictor_data_split),
+  function(gam_fit, pred_data) {
+    gratia::posterior_samples(
+      gam_fit,
+      n = 2000,
+      data = pred_data
+    ) %>%
+      left_join(pred_data %>% mutate(.row = row_number()), by = join_by(.row)) %>%
+      
+      mutate(pred_count = round(pmin(1e6, pmax(0, exp(.response) - 1))))
+  }
 ) %>%
+  bind_rows()
   
-  mutate(t = as.numeric(notification_date - min(model_data$notification_date)),
-         day_of_week = wday(notification_date),
-         .row = row_number())
-
-
-# Produce our predictions across the posterior of the gam
-forecasting_predictions <- gratia::posterior_samples(
-  gam_fit,
-  n = 2000,
-  data = forecasting_predictor_data
-) %>%
-  left_join(forecasting_predictor_data) %>%
   
-  mutate(pred_count = round(exp(.response)))
+  
+
   
 
 
@@ -65,17 +92,17 @@ forecasting_predictions <- gratia::posterior_samples(
 ggplot() +
   
   geom_line(aes(x = notification_date, y = cases),
-            flu_data_recent) +
+            case_counts_recent) +
   
   geom_line(aes(x = notification_date, y = pred_count, group = .draw),
             alpha = 0.5, colour = ggokabeito::palette_okabe_ito(5),
             forecasting_predictions %>% filter(.draw < 5)) +
   
-  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
+  geom_vline(aes(xintercept = origin_date),
+             date_information,
+             colour = ggokabeito::palette_okabe_ito(5)) +
   
-  scale_fill_brewer() +
-  
-  scale_y_continuous(limits = c(0, 900)) +
+  facet_wrap(~location * pathogen, scales = "free_y") +
   
   theme_bw()
 
@@ -87,9 +114,13 @@ ggplot() +
     forecasting_predictions
   ) +
   geom_line(aes(x = notification_date, y = cases),
-            flu_data_recent) +
+            case_counts_recent) +
   
-  geom_vline(xintercept = origin_date, colour = ggokabeito::palette_okabe_ito(5)) +
+  geom_vline(aes(xintercept = origin_date),
+             date_information,
+             colour = ggokabeito::palette_okabe_ito(5)) +
+  
+  facet_wrap(~location * pathogen, scales = "free_y") +
   
   scale_fill_brewer() +
   
@@ -103,8 +134,6 @@ ggplot() +
 forecast_data <- forecasting_predictions %>%
   
   mutate(
-    pathogen = "flu",
-    location = "VIC",
     horizon = as.integer(notification_date - origin_date),
     target = "case_incidence", 
     origin_date = origin_date,
