@@ -4,22 +4,19 @@ library(tidyverse)
 library(mgcv)
 library(gratia)
 
+
 # Read in the data we are going to forecast
-case_counts <- read_csv("Combined-count-2025-04-17.csv")
+case_counts <- read_csv("data/Combined-count-2025-04-24.csv") %>%
+  filter(is.na(test_type) | (test_type == "PCR"), notification_date >= ymd("2015-01-01")) # TODO remove
 
 # Read and extract the relevant date information
-date_information <- read_csv("date-information-2025-04-17.csv") %>%
-  rename(round_id = forecast_date) %>%
+date_information <- read_csv("data/date-information-2025-04-24.csv") %>%
   
-  filter(pathogen != "SARSCOV2", location != "NZ")
+  filter(location != "NZ")
 
 # Filter for just this season
 case_counts_recent <- case_counts %>%
-  filter(notification_date >= ymd("2025-01-01")) %>%
-  
-  left_join(date_information) %>% # TODO remove when data fixed
-  filter(notification_date <= origin_date) %>%
-  select(-c(origin_date, round_id, date_received))
+  filter(notification_date >= ymd("2025-01-01"))
 
 # Extract the round id for this week (should be the same as in the filename)
 round_id <- first(date_information$round_id)
@@ -58,6 +55,7 @@ gam_fits <- map(
 gratia::draw(gam_fits[[2]])
 
 forecasting_predictor_data_split <- date_information %>%
+  inner_join(model_data %>% distinct(location, pathogen)) %>%
   select(location, pathogen, origin_date) %>%
   rowwise() %>%
   mutate(notification_date = list(origin_date + 1:28)) %>%
@@ -154,10 +152,18 @@ forecast_data <- forecasting_predictions %>%
 
 forecast_data
 
+
+# Make forecasts of peak timing also
+source("peak_forecast.R")
+
+forecast_data_peaks <- make_peak_forecasts(case_counts, date_information)
+
+
 # Make sure our file name matches round_id and our model name
 forecast_file_name <- str_c(round_id, "-uom-testing.parquet")
 
 # Write out our forecast_data as a parquet file
-arrow::write_parquet(forecast_data, forecast_file_name)
+forecast_data_combined <- bind_rows(forecast_data, forecast_data_peaks)
+arrow::write_parquet(forecast_data_combined, file.path("forecasts", forecast_file_name))
 
 
