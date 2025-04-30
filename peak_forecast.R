@@ -27,7 +27,7 @@ make_peak_forecasts <- function(
               sd_log_cases = sd(peak_log_cases))
   
   peak_samples <- tibble(
-    sample = 1:4000
+    sample = 1:2000 # This must be the same number of samples as in forecast.R
   ) %>%
     expand_grid(peak_summary) %>% 
     mutate(peak_day = rnorm(n(), mean_day, sd_day),
