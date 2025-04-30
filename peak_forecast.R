@@ -54,8 +54,10 @@ make_peak_forecasts <- function(
     pivot_longer(c(peak_day_of_year, peak_case_incidence),
                  names_to = "target", values_to = "value") %>%
     
-    mutate(value = as.integer(value),
-           horizon = as.integer(0)) %>% 
+    mutate(
+      value = as.integer(value),
+      horizon = as.integer(0) # We must specify a horizon, so set it to zero
+    ) %>% 
     
     select(
       round_id, origin_date,          # Columns from date_information
