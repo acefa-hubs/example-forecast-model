@@ -6,9 +6,11 @@ make_peak_forecasts <- function(
   
   # Filter for just this season
   case_counts_yearly <- case_counts %>% 
-    filter(pathogen != "SARSCOV2")%>%
+    filter(pathogen != "SARSCOV2") %>%
     mutate(year = floor_date(notification_date, "year")) %>%
-    filter(notification_date < ymd("2025-01-01"))
+    filter(notification_date < ymd("2025-01-01")) %>%
+    group_by(pathogen, location) %>%
+    mutate(cases_average = zoo::rollmean(cases, 7, fill = NA))
   
   # Find all previous peaks
   previous_peaks <- case_counts_yearly %>%
@@ -58,10 +60,10 @@ make_peak_forecasts <- function(
     ) %>% 
     
     select(
-      round_id, origin_date,          # Columns from date_information
-      target, location, pathogen,     # Pivoted target name and identifying columns
-      output_type, output_type_id,    # Columns created before pivoting
-      value                           # Pivoted value column
+      round_id, origin_date,       
+      target, horizon, location, pathogen,  
+      output_type, output_type_id, 
+      value                          
     )
   
   
