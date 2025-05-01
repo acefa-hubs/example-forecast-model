@@ -5,14 +5,16 @@ library(mgcv)
 library(gratia)
 
 
+source("peak_forecast.R")
+
+
 # Read in the data we are going to forecast
-case_counts <- read_csv("data/Combined-count-2025-04-24.csv") %>%
-  filter(is.na(test_type) | (test_type == "PCR"), notification_date >= ymd("2015-01-01")) # TODO remove
+case_counts <- read_csv("data/combined-count-2025-05-01.csv") 
 
 # Read and extract the relevant date information
-date_information <- read_csv("data/date-information-2025-04-24.csv") %>%
+date_information <- read_csv("data/date-information-2025-05-01.csv") %>%
   
-  filter(location != "NZ")
+  filter(location != "NZ", location != "VIC")
 
 # Filter for just this season
 case_counts_recent <- case_counts %>%
@@ -153,10 +155,25 @@ forecast_data <- forecasting_predictions %>%
 forecast_data
 
 
-# Make forecasts of peak timing also
-source("peak_forecast.R")
+# Optionally, make forecasts of peak timing also
 
 forecast_data_peaks <- make_peak_forecasts(case_counts, date_information)
+
+
+# Plot peak forecasts
+forecast_data_peaks %>%
+  pivot_wider(names_from = "target") %>%
+  ggplot() +
+  geom_point(aes(x = peak_day_of_year, y = peak_case_incidence),
+             size = 0.3) +
+  
+  facet_wrap(~location * pathogen, scales = "free_y")  +
+  
+  coord_cartesian(ylim = c(1, NA)) +
+  scale_y_log10() +
+  
+  theme_bw()
+
 
 
 # Make sure our file name matches round_id and our model name

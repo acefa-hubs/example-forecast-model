@@ -1,5 +1,3 @@
-library(tidyverse)
-
 make_peak_forecasts <- function(
   case_counts, date_information
 ) {
